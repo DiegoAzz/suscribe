@@ -59,7 +59,12 @@ export async function forwardAuthRoutes(fastify: FastifyInstance) {
 
     // Caso 2: Redirección HTML (302 Found)
     if (result.redirectUrl) {
-      return reply.redirect(result.redirectUrl, 302);
+      return reply
+        .code(302)
+        .header('Location', result.redirectUrl)
+        .header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        .type('text/plain')
+        .send(`Redirecting to ${result.redirectUrl}`);
     }
 
     // Caso 3: Denegado / Forbidden (403 / 503)

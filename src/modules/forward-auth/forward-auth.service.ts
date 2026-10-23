@@ -41,7 +41,10 @@ export class ForwardAuthService {
     const cleanHost = rawHost.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').split(':')[0].trim().toLowerCase();
     const uri = params.uri || '/';
     const method = (params.method || 'GET').toUpperCase();
-    const isBrowserHtml = (params.acceptHeader || '').includes('text/html') && method === 'GET';
+
+    // Detección robusta: Cualquier petición que no sea explícitamente un endpoint /api/ es tratada como navegación web
+    const isExplicitApi = uri.startsWith('/api/') && !(params.acceptHeader || '').includes('text/html');
+    const isBrowserHtml = !isExplicitApi;
 
     // 1.1 Salvaguarda Crítica: El propio Gateway y sus páginas administrativas jamás pueden ser bloqueados
     let gatewayHost = 'suscribe.appzplay.online';
@@ -388,9 +391,13 @@ export class ForwardAuthService {
     }
 
     // Si fue denegado:
-    // Para navegación web en navegador redirigimos a la página informativa de suspensión
+    // Para navegación web en navegador redirigimos a la página informativa de suspensión (URL Absoluta)
     if (isBrowserHtml) {
-      const redirectUrl = `${env.SUSPENDED_REDIRECT_URL}?domain=${encodeURIComponent(cleanHost)}&reason=${encodeURIComponent(decision.reason || '')}&uri=${encodeURIComponent(uri)}`;
+      const baseSuspended = env.SUSPENDED_REDIRECT_URL.startsWith('http')
+        ? env.SUSPENDED_REDIRECT_URL
+        : `${env.APP_URL.replace(/\/$/, '')}/suspended`;
+
+      const redirectUrl = `${baseSuspended}?domain=${encodeURIComponent(cleanHost)}&reason=${encodeURIComponent(decision.reason || '')}&uri=${encodeURIComponent(uri)}`;
       return {
         allowed: false,
         statusCode: 302,
