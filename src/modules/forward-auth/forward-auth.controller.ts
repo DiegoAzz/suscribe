@@ -12,11 +12,20 @@ export async function forwardAuthRoutes(fastify: FastifyInstance) {
 
   // Endpoint principal invocado por Traefik ForwardAuth
   const handleVerify = async (request: FastifyRequest, reply: FastifyReply) => {
-    // Traefik reenvía las cabeceras originales del cliente
-    const host =
-      (request.headers['x-forwarded-host'] as string) ||
-      (request.headers['host'] as string) ||
-      (request.query as { domain?: string })?.domain;
+    // 1. Extraer el dominio del cliente que se está evaluando.
+    // Damos máxima prioridad a ?domain= si viene explícito en la URL del middleware,
+    // luego a las cabeceras personalizadas y a X-Forwarded-Host enviadas por Traefik.
+    const queryDomain = (request.query as { domain?: string })?.domain;
+    const headerDomain =
+      (request.headers['x-license-domain'] as string) ||
+      (request.headers['x-app-domain'] as string) ||
+      (request.headers['x-forwarded-host'] as string);
+
+    let rawHost = queryDomain || headerDomain || (request.headers['host'] as string);
+    if (rawHost && rawHost.includes(',')) {
+      rawHost = rawHost.split(',')[0].trim();
+    }
+    const host = rawHost;
 
     const uri =
       (request.headers['x-forwarded-uri'] as string) ||
@@ -33,8 +42,8 @@ export async function forwardAuthRoutes(fastify: FastifyInstance) {
       (request.headers['x-real-ip'] as string) ||
       request.ip;
 
-    const userAgent = request.headers['user-agent'] as string;
-    const acceptHeader = request.headers['accept'] as string;
+    const userAgent = (request.headers['user-agent'] as string) || '';
+    const acceptHeader = (request.headers['accept'] as string) || '';
 
     const result = await forwardAuthService.verifyRequest({
       host,

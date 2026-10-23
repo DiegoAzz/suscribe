@@ -17,7 +17,7 @@ export async function traefikHelperRoutes(fastify: FastifyInstance) {
     // 1. Formato Plano para la caja de texto de Coolify UI (Container Labels)
     const coolifyUiSnippet = `
 # --- Pegar al final de la caja Active labels en Coolify ---
-traefik.http.middlewares.appzplay-auth.forwardauth.address=${gatewayUrl}/api/v1/forward-auth/verify
+traefik.http.middlewares.appzplay-auth.forwardauth.address=${gatewayUrl}/api/v1/forward-auth/verify?domain=${cleanHost}
 traefik.http.middlewares.appzplay-auth.forwardauth.trustForwardHeader=true
 traefik.http.middlewares.appzplay-auth.forwardauth.authResponseHeaders=X-License-Status,X-License-Tenant,X-License-App,X-License-Warning
 `.trim();
@@ -31,7 +31,7 @@ labels:
   - "traefik.http.routers.${serviceName}.tls=true"
   - "traefik.http.routers.${serviceName}.tls.certresolver=letsencrypt"
   - "traefik.http.routers.${serviceName}.middlewares=appzplay-auth@docker"
-  - "traefik.http.middlewares.appzplay-auth.forwardauth.address=${gatewayUrl}/api/v1/forward-auth/verify"
+  - "traefik.http.middlewares.appzplay-auth.forwardauth.address=${gatewayUrl}/api/v1/forward-auth/verify?domain=${cleanHost}"
   - "traefik.http.middlewares.appzplay-auth.forwardauth.trustForwardHeader=true"
   - "traefik.http.middlewares.appzplay-auth.forwardauth.authResponseHeaders=X-License-Status,X-License-Tenant,X-License-App,X-License-Warning"
 `.trim();

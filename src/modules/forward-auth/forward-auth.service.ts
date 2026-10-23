@@ -46,27 +46,36 @@ export class ForwardAuthService {
     const isExplicitApi = uri.startsWith('/api/') && !(params.acceptHeader || '').includes('text/html');
     const isBrowserHtml = !isExplicitApi;
 
-    // 1.1 Salvaguarda Crítica: El propio Gateway y sus páginas administrativas jamás pueden ser bloqueados
+    // 1.1 Salvaguarda Crítica: El propio Gateway JAMÁS se bloquea a sí mismo
     let gatewayHost = 'suscribe.appzplay.online';
     try {
       gatewayHost = new URL(env.APP_URL).hostname.toLowerCase();
     } catch {}
 
-    if (
+    const isGatewaySelf = (
       cleanHost === gatewayHost ||
-      cleanHost === 'suscribe.appzplay.online' ||
       cleanHost === 'localhost' ||
-      cleanHost === '127.0.0.1' ||
-      uri.startsWith('/suspended') ||
-      uri.startsWith('/health') ||
-      uri.startsWith('/api/v1/auth') ||
-      uri.startsWith('/api/v1/forward-auth')
-    ) {
+      cleanHost === '127.0.0.1'
+    );
+
+    if (isGatewaySelf) {
       return {
         allowed: true,
         statusCode: 200,
         headers: {
           'X-License-Status': 'GATEWAY_SELF_BYPASS',
+        },
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    // Rutas públicas que nunca deben ser bloqueadas en ningún dominio (salud y pantalla de suspensión)
+    if (uri.startsWith('/suspended') || uri.startsWith('/health')) {
+      return {
+        allowed: true,
+        statusCode: 200,
+        headers: {
+          'X-License-Status': 'SAFEGUARD_BYPASS',
         },
         latencyMs: Date.now() - startTime,
       };
