@@ -30,6 +30,17 @@ export async function buildApp() {
     trustProxy: true,
   });
 
+  // Permitir bodies vacíos en peticiones POST/PUT/PATCH con Content-Type: application/json
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    try {
+      const str = (body as string || '').trim();
+      const json = str ? JSON.parse(str) : {};
+      done(null, json);
+    } catch (err: any) {
+      done(err, undefined);
+    }
+  });
+
   // 1. CORS
   await app.register(cors, {
     origin: true,

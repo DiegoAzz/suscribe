@@ -208,7 +208,7 @@ async function runTests() {
     });
     assert.strictEqual(res.statusCode, 200);
     const body = JSON.parse(res.body);
-    assert.ok(body.snippet.includes('traefik.http.routers.turnoya.middlewares=turnoya-forwardauth@docker'));
+    assert.ok(body.snippet.includes('middlewares=appzplay-auth@docker'));
     assert.ok(body.snippet.includes('forwardauth.trustForwardHeader=true'));
     assert.ok(body.snippet.includes('authResponseHeaders=X-License-Status,X-License-Tenant,X-License-App'));
   });

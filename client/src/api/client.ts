@@ -8,9 +8,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  // Garantizar body válido en métodos mutantes para evitar FST_ERR_CTP_EMPTY_JSON_BODY
+  let body = options.body;
+  if ((options.method === 'POST' || options.method === 'PUT' || options.method === 'PATCH') && body === undefined) {
+    body = JSON.stringify({});
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
+    body,
   });
 
   if (!res.ok) {
@@ -90,6 +97,7 @@ export const api = {
   reactivateLicense: (id: string) =>
     request<any>(`/api/v1/licenses/${id}/reactivate`, {
       method: 'POST',
+      body: JSON.stringify({}),
     }),
   extendLicense: (id: string, days = 30) =>
     request<any>(`/api/v1/licenses/${id}/extend`, {
