@@ -50,7 +50,12 @@ export function App() {
   const [showNewTenantModal, setShowNewTenantModal] = useState(false);
   const [newTenantCode, setNewTenantCode] = useState('');
   const [newTenantName, setNewTenantName] = useState('');
+  const [newTenantDomain, setNewTenantDomain] = useState('');
+  const [newTenantAppId, setNewTenantAppId] = useState('');
   const [newTenantEmail, setNewTenantEmail] = useState('');
+  const [newTenantPhone, setNewTenantPhone] = useState('');
+  const [newTenantDays, setNewTenantDays] = useState(30);
+  const [onboardLoading, setOnboardLoading] = useState(false);
 
   // Simulator
   const [simDomain, setSimDomain] = useState('demo.appzplay.online');
@@ -185,6 +190,41 @@ export function App() {
       loadAllData();
     } catch (err: any) {
       showNotify(err.message, 'error');
+    }
+  };
+
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const appId = newTenantAppId || applications[0]?.id;
+    if (!newTenantName || !newTenantCode || !newTenantDomain || !appId) {
+      showNotify('Por favor completa todos los campos requeridos (*)', 'error');
+      return;
+    }
+
+    setOnboardLoading(true);
+    try {
+      const res = await api.onboardTenant({
+        businessName: newTenantName,
+        code: newTenantCode,
+        hostname: newTenantDomain,
+        applicationId: appId,
+        email: newTenantEmail,
+        phone: newTenantPhone,
+        daysActive: Number(newTenantDays) || 30,
+      });
+
+      showNotify(res.message || 'Cliente registrado exitosamente');
+      setShowNewTenantModal(false);
+      setNewTenantName('');
+      setNewTenantCode('');
+      setNewTenantDomain('');
+      setNewTenantEmail('');
+      setNewTenantPhone('');
+      loadAllData();
+    } catch (err: any) {
+      showNotify(err.message, 'error');
+    } finally {
+      setOnboardLoading(false);
     }
   };
 
@@ -1027,6 +1067,153 @@ export function App() {
                 Suspender Ahora
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar Nuevo Cliente y Dominio */}
+      {showNewTenantModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Registrar Nuevo Sitio / Cliente</h3>
+                  <span className="text-xs text-slate-400">Alta de tenant, vinculación de dominio y licencia en 1 paso</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNewTenantModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTenant} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Razón Social / Negocio *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej: Pizzería Nápoles"
+                    value={newTenantName}
+                    onChange={(e) => {
+                      setNewTenantName(e.target.value);
+                      if (!newTenantCode) {
+                        setNewTenantCode('cli-' + e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20));
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Código de Cliente *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej: cli-napoles"
+                    value={newTenantCode}
+                    onChange={(e) => setNewTenantCode(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Aplicación SaaS *</label>
+                  <select
+                    value={newTenantAppId || applications[0]?.id || ''}
+                    onChange={(e) => setNewTenantAppId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
+                  >
+                    {applications.map((app) => (
+                      <option key={app.id} value={app.id}>
+                        {app.name} ({app.slug})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Dominio o Subdominio *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej: pedidos.napoles.online"
+                    value={newTenantDomain}
+                    onChange={(e) => setNewTenantDomain(e.target.value.toLowerCase().trim())}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Vigencia Inicial (Días)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="3650"
+                    value={newTenantDays}
+                    onChange={(e) => setNewTenantDays(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Email de Contacto</label>
+                  <input
+                    type="email"
+                    placeholder="contacto@cliente.com"
+                    value={newTenantEmail}
+                    onChange={(e) => setNewTenantEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Teléfono</label>
+                  <input
+                    type="text"
+                    placeholder="+57 300 000 0000"
+                    value={newTenantPhone}
+                    onChange={(e) => setNewTenantPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-900/50 text-[11px] text-indigo-300 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 shrink-0 text-indigo-400" />
+                <span>Al registrar, el dominio quedará inmediatamente protegido bajo Traefik ForwardAuth con licencia activa.</span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowNewTenantModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={onboardLoading}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-indigo-600/20 flex items-center gap-2"
+                >
+                  {onboardLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>{onboardLoading ? 'Registrando...' : 'Registrar y Proteger Sitio'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

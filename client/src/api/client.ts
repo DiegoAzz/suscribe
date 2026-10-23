@@ -40,6 +40,11 @@ export const api = {
 
   // Tenants
   getTenants: () => request<any[]>('/api/v1/tenants'),
+  onboardTenant: (data: any) =>
+    request<any>('/api/v1/tenants/onboard', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   createTenant: (data: any) =>
     request('/api/v1/tenants', {
       method: 'POST',
