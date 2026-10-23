@@ -3,10 +3,13 @@ export function renderSuspendedPage(params: {
   reason?: string;
   uri?: string;
 }): string {
-  const domain = params.domain ? escapeHtml(params.domain) : 'este servicio';
+  const rawDomain = params.domain || '';
+  const domain = rawDomain ? escapeHtml(rawDomain) : 'este servicio';
   const reason = params.reason
     ? escapeHtml(params.reason)
     : 'La suscripción asociada a este dominio se encuentra temporalmente inactiva o vencida.';
+  const uri = params.uri && params.uri !== '/suspended' ? params.uri : '/';
+  const targetUrl = rawDomain ? `https://${rawDomain}${uri}` : '/';
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -165,17 +168,74 @@ export function renderSuspendedPage(params: {
     .btn-secondary {
       background: rgba(255, 255, 255, 0.05);
       color: #cbd5e1;
-      padding: 0.75rem 1.25rem;
+      padding: 0.85rem 1.25rem;
       border-radius: 10px;
-      font-weight: 500;
+      font-weight: 600;
       text-decoration: none;
-      font-size: 0.875rem;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      transition: background 0.2s ease;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-family: inherit;
     }
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.12);
       color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    .btn-secondary:active {
+      transform: scale(0.98);
+    }
+    .verify-status {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      text-align: left;
+      line-height: 1.5;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .verify-status.error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+    .verify-status.success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+    .direct-link-container {
+      margin-top: 1.25rem;
+    }
+    .direct-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #94a3b8;
+      font-size: 0.8rem;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .direct-link:hover {
+      color: #38bdf8;
+      text-decoration: underline;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin {
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     footer {
       margin-top: 1.75rem;
@@ -226,15 +286,124 @@ export function renderSuspendedPage(params: {
         </svg>
         Contactar a Soporte y Renovar
       </a>
-      <a href="javascript:location.reload()" class="btn-secondary">
-        Verificar de Nuevo
-      </a>
+      <button type="button" id="btn-verify" class="btn-secondary" onclick="verificarLicencia()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6"></path>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+        <span>Verificar de Nuevo</span>
+      </button>
     </div>
+
+    <div id="verify-status" class="verify-status"></div>
+
+    ${rawDomain ? `
+    <div class="direct-link-container">
+      <a href="${escapeHtml(targetUrl)}" class="direct-link">
+        Reintentar abrir <strong>https://${escapeHtml(rawDomain)}</strong> &rarr;
+      </a>
+    </div>` : ''}
 
     <footer>
       AppzPlay License Gateway • Control Perimetral con Traefik
     </footer>
   </div>
+
+  <script>
+    async function verificarLicencia() {
+      const btn = document.getElementById('btn-verify');
+      const statusBox = document.getElementById('verify-status');
+      const domain = ${JSON.stringify(rawDomain)};
+      const targetUrl = ${JSON.stringify(targetUrl)};
+
+      if (!btn) return;
+      btn.disabled = true;
+      btn.style.opacity = '0.75';
+      btn.style.cursor = 'wait';
+      btn.innerHTML = \`
+        <svg class="spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+        </svg>
+        <span>Comprobando estado en tiempo real...</span>
+      \`;
+
+      if (statusBox) {
+        statusBox.style.display = 'none';
+        statusBox.className = 'verify-status';
+      }
+
+      try {
+        if (!domain) {
+          window.location.reload();
+          return;
+        }
+
+        const res = await fetch('/api/v1/forward-auth/verify?domain=' + encodeURIComponent(domain), {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+
+        if (res.status === 200) {
+          btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+          btn.style.borderColor = '#10b981';
+          btn.style.color = '#ffffff';
+          btn.innerHTML = \`
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>¡Suscripción Activa! Redirigiendo...</span>
+          \`;
+          if (statusBox) {
+            statusBox.className = 'verify-status success';
+            statusBox.style.display = 'block';
+            statusBox.innerHTML = '<strong>✅ ¡Licencia activa!</strong> Redirigiendo a tu aplicación en un instante...';
+          }
+          setTimeout(() => {
+            window.location.href = targetUrl;
+          }, 1000);
+          return;
+        }
+
+        // Si la respuesta es 403 o continúa pausada
+        const data = await res.json().catch(() => ({}));
+        if (statusBox) {
+          statusBox.className = 'verify-status error';
+          statusBox.style.display = 'block';
+          const reasonMsg = data.reason || 'El estado de la cuenta aún no ha sido restablecido por administración.';
+          statusBox.innerHTML = '<strong>⚠️ Suscripción aún pausada:</strong> ' + escapeHtmlClient(reasonMsg);
+        }
+      } catch (err) {
+        // En caso de cualquier error de red, intentar navegar al destino
+        if (targetUrl) {
+          window.location.href = targetUrl;
+        } else {
+          window.location.reload();
+        }
+        return;
+      } finally {
+        setTimeout(() => {
+          if (!btn.innerHTML.includes('¡Suscripción Activa!')) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+            btn.innerHTML = \`
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6"></path>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              <span>Verificar de Nuevo</span>
+            \`;
+          }
+        }, 1200);
+      }
+    }
+
+    function escapeHtmlClient(str) {
+      const p = document.createElement('p');
+      p.textContent = str;
+      return p.innerHTML;
+    }
+  </script>
 </body>
 </html>`;
 }
