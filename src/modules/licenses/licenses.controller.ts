@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../db/prisma.js';
 import { z } from 'zod';
 import { licenseCache } from '../../cache/license-cache.js';
-import { LicenseStatus, BillingCycle } from '@prisma/client';
+import { LicenseStatus, BillingCycle, TenantStatus } from '@prisma/client';
 
 const licenseSchema = z.object({
   tenantId: z.string().uuid(),
@@ -208,5 +208,97 @@ export async function licensesRoutes(fastify: FastifyInstance) {
       message: `Licencia extendida ${daysToAdd} días exitosamente. Nueva fecha: ${newExpiresAt.toISOString()}`,
       license: updated,
     };
+  });
+
+  // Consulta pública rápida de estado de dominio para la pantalla de suspensión
+  fastify.get('/api/v1/licenses/check-status', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { domain } = request.query as { domain?: string };
+    if (!domain) {
+      return reply.code(400).send({ allowed: false, error: 'Dominio requerido' });
+    }
+
+    const cleanHost = domain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').split(':')[0].trim().toLowerCase();
+
+    try {
+      const foundDomain = await prisma.domain.findUnique({
+        where: { hostname: cleanHost },
+        include: {
+          tenant: {
+            include: {
+              licenses: {
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+              },
+            },
+          },
+        },
+      });
+
+      if (!foundDomain || !foundDomain.tenant) {
+        return {
+          allowed: false,
+          status: 'NOT_FOUND',
+          reason: 'Dominio no registrado en el sistema de licencias.',
+        };
+      }
+
+      if (foundDomain.tenant.status !== TenantStatus.ACTIVE) {
+        return {
+          allowed: false,
+          status: 'TENANT_INACTIVE',
+          reason: 'El cliente se encuentra desactivado o archivado en la plataforma.',
+        };
+      }
+
+      const license = foundDomain.tenant.licenses[0];
+      if (!license) {
+        return {
+          allowed: false,
+          status: 'NO_LICENSE',
+          reason: 'No hay licencias asignadas para este dominio.',
+        };
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(license.expiresAt);
+      const gracePeriodDays = license.gracePeriodDays ?? 3;
+      const graceExpiresAt = new Date(expiresAt.getTime() + gracePeriodDays * 24 * 60 * 60 * 1000);
+
+      if (license.status === LicenseStatus.SUSPENDED) {
+        return {
+          allowed: false,
+          status: 'SUSPENDED',
+          reason: license.suspensionReason || 'Suscripción suspendida administrativamente.',
+        };
+      }
+
+      if (license.status === LicenseStatus.CANCELLED) {
+        return {
+          allowed: false,
+          status: 'CANCELLED',
+          reason: license.suspensionReason || 'Suscripción cancelada permanentemente.',
+        };
+      }
+
+      if (now > expiresAt && now > graceExpiresAt) {
+        return {
+          allowed: false,
+          status: 'EXPIRED',
+          reason: 'Suscripción vencida. Período de gracia agotado.',
+        };
+      }
+
+      return {
+        allowed: true,
+        status: license.status,
+        expiresAt: license.expiresAt,
+      };
+    } catch {
+      return reply.code(500).send({
+        allowed: false,
+        status: 'ERROR',
+        reason: 'Error al consultar el estado de la suscripción.',
+      });
+    }
   });
 }

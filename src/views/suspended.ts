@@ -338,12 +338,13 @@ export function renderSuspendedPage(params: {
           return;
         }
 
-        const res = await fetch('/api/v1/forward-auth/verify?domain=' + encodeURIComponent(domain), {
-          headers: { 'Accept': 'application/json' },
+        const res = await fetch('/api/v1/licenses/check-status?domain=' + encodeURIComponent(domain), {
           cache: 'no-store'
         });
 
-        if (res.status === 200) {
+        const data = await res.json().catch(() => ({}));
+
+        if (data.allowed) {
           btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
           btn.style.borderColor = '#10b981';
           btn.style.color = '#ffffff';
@@ -364,8 +365,7 @@ export function renderSuspendedPage(params: {
           return;
         }
 
-        // Si la respuesta es 403 o continúa pausada
-        const data = await res.json().catch(() => ({}));
+        // Si continúa pausada
         if (statusBox) {
           statusBox.className = 'verify-status error';
           statusBox.style.display = 'block';
