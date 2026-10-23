@@ -94,10 +94,35 @@ export async function auditRoutes(fastify: FastifyInstance) {
     }));
   });
 
-  // Purgar caché manual desde el panel
+  // Purgar caché manual desde el panel y normalizar dominios
   fastify.post('/api/v1/cache/purge', async () => {
     const count = licenseCache.size();
     licenseCache.clear();
-    return { message: 'Caché de ForwardAuth purgada con éxito', keysPurged: count };
+
+    let cleaned = 0;
+    try {
+      const dirty = await prisma.domain.findMany();
+      for (const d of dirty) {
+        const clean = d.hostname.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim().toLowerCase();
+        if (clean !== d.hostname) {
+          const exists = await prisma.domain.findUnique({ where: { hostname: clean } });
+          if (!exists) {
+            await prisma.domain.update({ where: { id: d.id }, data: { hostname: clean } });
+            cleaned++;
+          } else {
+            await prisma.domain.delete({ where: { id: d.id } });
+            cleaned++;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error normalizando dominios:', err);
+    }
+
+    return {
+      message: `Caché purgada con éxito (${count} claves). Dominios corregidos automáticamente: ${cleaned}.`,
+      keysPurged: count,
+      cleaned,
+    };
   });
 }

@@ -92,6 +92,26 @@ export async function buildApp() {
   return app;
 }
 
+async function normalizeLegacyDomains() {
+  try {
+    const all = await prisma.domain.findMany();
+    for (const d of all) {
+      const clean = d.hostname.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim().toLowerCase();
+      if (clean !== d.hostname) {
+        const exists = await prisma.domain.findUnique({ where: { hostname: clean } });
+        if (!exists) {
+          await prisma.domain.update({ where: { id: d.id }, data: { hostname: clean } });
+          console.log(`[Auto-Clean] Dominio normalizado: '${d.hostname}' -> '${clean}'`);
+        } else {
+          await prisma.domain.delete({ where: { id: d.id } });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Auto-Clean] Error normalizando dominios:', err);
+  }
+}
+
 async function startServer() {
   try {
     const app = await buildApp();
@@ -99,6 +119,8 @@ async function startServer() {
     console.log(`🚀 AppzPlay License Gateway escuchando en http://${env.HOST}:${env.PORT}`);
     console.log(`🛡️  ForwardAuth Endpoint: http://${env.HOST}:${env.PORT}/api/v1/forward-auth/verify`);
     console.log(`📊 Panel Administrativo: http://${env.HOST}:${env.PORT}/`);
+    // Limpiar dominios con https:// de forma asíncrona
+    normalizeLegacyDomains();
   } catch (err) {
     console.error('Error fatal al iniciar AppzPlay License Gateway:', err);
     process.exit(1);
