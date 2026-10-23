@@ -66,8 +66,10 @@ export function App() {
 
   // Coolify Helper
   const [selectedAppSlug, setSelectedAppSlug] = useState('turnoya');
-  const [helperDomain, setHelperDomain] = useState('citas.mitrabajo.online');
+  const [helperDomain, setHelperDomain] = useState('turnos.appzplay.online');
   const [helperSnippet, setHelperSnippet] = useState('');
+  const [coolifyUiSnippet, setCoolifyUiSnippet] = useState('');
+  const [snippetFormat, setSnippetFormat] = useState<'ui' | 'compose'>('ui');
 
   const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message: msg, type });
@@ -123,7 +125,10 @@ export function App() {
   // Update snippet when app/domain changes
   useEffect(() => {
     api.getTraefikSnippet(selectedAppSlug, helperDomain)
-      .then((res) => setHelperSnippet(res.snippet))
+      .then((res) => {
+        setHelperSnippet(res.snippet);
+        setCoolifyUiSnippet(res.coolifyUiSnippet || '');
+      })
       .catch(() => {});
   }, [selectedAppSlug, helperDomain]);
 
@@ -1027,23 +1032,57 @@ export function App() {
 
               {/* Code Snippet */}
               <div className="lg:col-span-2 p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white">Etiquetas Docker Compose Listas</h3>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setSnippetFormat('ui')}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                        snippetFormat === 'ui' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Formato Coolify UI (Active Labels)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSnippetFormat('compose')}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                        snippetFormat === 'compose' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Formato Docker Compose (YAML)
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(helperSnippet);
+                      const textToCopy = snippetFormat === 'ui' ? coolifyUiSnippet : helperSnippet;
+                      navigator.clipboard.writeText(textToCopy);
                       showNotify('Etiquetas copiadas al portapapeles');
                     }}
                     className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Copiar Etiquetas</span>
+                    <span>Copiar al Portapapeles</span>
                   </button>
                 </div>
 
-                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
-                  {helperSnippet}
-                </pre>
+                {snippetFormat === 'ui' ? (
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
+                      <div className="font-semibold text-indigo-400">Instrucciones para la pantalla de Coolify:</div>
+                      <div>1. En Coolify, busca la línea que dice <code>.middlewares=gzip</code> y agrégale <code>,appzplay-auth</code> al final.</div>
+                      <div>2. Pega estas 3 líneas al final de la caja <strong>Active labels</strong>:</div>
+                    </div>
+                    <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+                      {coolifyUiSnippet}
+                    </pre>
+                  </div>
+                ) : (
+                  <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+                    {helperSnippet}
+                  </pre>
+                )}
               </div>
             </div>
           </div>
