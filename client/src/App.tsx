@@ -757,6 +757,32 @@ export function App() {
                       )}
                     </div>
                   </div>
+
+                  {t.licenses && t.licenses.length > 0 && (
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-medium">Control de Acceso:</span>
+                      {t.licenses[0].status === 'SUSPENDED' ? (
+                        <button
+                          onClick={() => handleReactivate(t.licenses[0].id)}
+                          className="px-3 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Reactivar Acceso</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setSuspendingLicenseId(t.licenses[0].id);
+                            setSuspendReason('Suscripción suspendida manualmente.');
+                          }}
+                          className="px-3 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/40 font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span>Suspender Acceso</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1149,7 +1175,7 @@ export function App() {
                     required
                     placeholder="ej: pedidos.napoles.online"
                     value={newTenantDomain}
-                    onChange={(e) => setNewTenantDomain(e.target.value.toLowerCase().trim())}
+                    onChange={(e) => setNewTenantDomain(e.target.value.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase().trim())}
                     className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
                   />
                 </div>

@@ -82,7 +82,13 @@ export async function tenantsRoutes(fastify: FastifyInstance) {
     }
 
     const data = parse.data;
-    const cleanHost = data.hostname.toLowerCase().trim();
+    // Limpieza automática de protocolo, slashes y puertos (ej: https://appzplay.online/ -> appzplay.online)
+    const cleanHost = data.hostname
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .split(':')[0]
+      .toLowerCase()
+      .trim();
 
     // 1. Validar que no exista el código ni el hostname
     const existingCode = await prisma.tenant.findUnique({ where: { code: data.code } });

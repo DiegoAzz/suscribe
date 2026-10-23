@@ -80,8 +80,16 @@ export class ForwardAuthService {
     let decision: CachedLicenseDecision;
 
     try {
-      const domainRecord = await prisma.domain.findUnique({
-        where: { hostname: cleanHost },
+      const domainRecord = await prisma.domain.findFirst({
+        where: {
+          OR: [
+            { hostname: cleanHost },
+            { hostname: `https://${cleanHost}` },
+            { hostname: `https://${cleanHost}/` },
+            { hostname: `http://${cleanHost}` },
+            { hostname: `http://${cleanHost}/` },
+          ],
+        },
         include: {
           tenant: true,
           application: true,
