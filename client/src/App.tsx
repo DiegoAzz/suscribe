@@ -52,6 +52,7 @@ export function App() {
   const [newTenantName, setNewTenantName] = useState('');
   const [newTenantDomain, setNewTenantDomain] = useState('');
   const [newTenantAppId, setNewTenantAppId] = useState('');
+  const [customAppName, setCustomAppName] = useState('');
   const [newTenantEmail, setNewTenantEmail] = useState('');
   const [newTenantPhone, setNewTenantPhone] = useState('');
   const [newTenantDays, setNewTenantDays] = useState(30);
@@ -195,7 +196,7 @@ export function App() {
 
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
-    const appId = newTenantAppId || applications[0]?.id;
+    const appId = newTenantAppId === '__NEW__' ? (customAppName.trim() || 'Nueva App') : (newTenantAppId || applications[0]?.id);
     if (!newTenantName || !newTenantCode || !newTenantDomain || !appId) {
       showNotify('Por favor completa todos los campos requeridos (*)', 'error');
       return;
@@ -1156,7 +1157,7 @@ export function App() {
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Aplicación SaaS *</label>
                   <select
-                    value={newTenantAppId || applications[0]?.id || ''}
+                    value={newTenantAppId || (applications[0]?.id ?? '')}
                     onChange={(e) => setNewTenantAppId(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
                   >
@@ -1165,7 +1166,18 @@ export function App() {
                         {app.name} ({app.slug})
                       </option>
                     ))}
+                    <option value="__NEW__">➕ + Crear Nueva Aplicación...</option>
                   </select>
+                  {newTenantAppId === '__NEW__' && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Nombre de la nueva aplicación (ej: Godot)"
+                      value={customAppName}
+                      onChange={(e) => setCustomAppName(e.target.value)}
+                      className="w-full mt-2 px-3 py-2 rounded-lg bg-slate-950 border border-indigo-500 text-white text-xs focus:outline-none animate-fadeIn"
+                    />
+                  )}
                 </div>
 
                 <div>

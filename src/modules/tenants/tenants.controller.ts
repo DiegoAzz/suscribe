@@ -101,13 +101,21 @@ export async function tenantsRoutes(fastify: FastifyInstance) {
       return reply.code(409).send({ error: `El dominio '${cleanHost}' ya está registrado en el Gateway.` });
     }
 
-    // 2. Resolver la aplicación (por ID o slug)
-    const app = await prisma.application.findFirst({
+    // 2. Resolver la aplicación (por ID, slug, o crearla automáticamente si es nueva)
+    let app = await prisma.application.findFirst({
       where: { OR: [{ id: data.applicationId }, { slug: data.applicationId }] },
     });
 
     if (!app) {
-      return reply.code(404).send({ error: 'Aplicación seleccionada no encontrada.' });
+      const slug = data.applicationId.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 50) || 'app-' + Date.now();
+      app = await prisma.application.create({
+        data: {
+          name: data.applicationId,
+          slug,
+          description: `Aplicación '${data.applicationId}' registrada automáticamente.`,
+          defaultGracePeriodDays: 3,
+        },
+      });
     }
 
     // 3. Crear en transacción atómica: Tenant + Dominio + Licencia
