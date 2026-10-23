@@ -78,6 +78,10 @@ export function App() {
   const [coolifyActionId, setCoolifyActionId] = useState<string | null>(null);
   const [coolifyConfig, setCoolifyConfig] = useState<any>({ url: 'http://179.236.70.251:8000', hasToken: true });
 
+  // Delete Tenant Modal
+  const [deletingTenant, setDeletingTenant] = useState<any>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message: msg, type });
     setTimeout(() => setNotification(null), 4000);
@@ -292,6 +296,22 @@ export function App() {
     }
   };
 
+  const handleDeleteTenant = async () => {
+    if (!deletingTenant) return;
+    setDeleteLoading(true);
+    try {
+      await api.deleteTenant(deletingTenant.id);
+      showNotify(`Cliente '${deletingTenant.businessName}' eliminado exitosamente.`);
+      setDeletingTenant(null);
+      await loadAllData();
+      await loadCoolifyApps();
+    } catch (err: any) {
+      showNotify(err.message || 'Error al eliminar cliente', 'error');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const handleRunSimulator = async () => {
     setSimLoading(true);
     try {
@@ -388,24 +408,24 @@ export function App() {
       )}
 
       {/* Top Navbar */}
-      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Shield className="w-5 h-5 text-white" />
+      <header className="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-3.5 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+              <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-white text-sm tracking-tight">AppzPlay</span>
-                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  License Gateway
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-bold text-white text-xs sm:text-sm tracking-tight">AppzPlay</span>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  Gateway
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400">Traefik ForwardAuth Proxy Controller</span>
+              <span className="text-[10px] sm:text-[11px] text-slate-400 hidden xs:inline">Traefik ForwardAuth Controller</span>
             </div>
           </div>
 
-          {/* Navigation Links */}
+          {/* Navigation Links (Desktop) */}
           <nav className="hidden md:flex items-center gap-1 ml-4 bg-slate-950/60 p-1 rounded-xl border border-slate-800/60">
             <button
               onClick={() => setActiveTab('dashboard')}
@@ -465,17 +485,17 @@ export function App() {
         </div>
 
         {/* User & Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={handlePurgeCache}
             title="Vaciar caché de ForwardAuth"
-            className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5 border border-slate-700/60 transition-colors"
+            className="px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1.5 border border-slate-700/60 transition-colors"
           >
             <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden sm:inline">Purgar Caché</span>
           </button>
 
-          <div className="flex items-center gap-2 pl-3 border-l border-slate-800">
+          <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-800">
             <div className="text-right hidden sm:block">
               <div className="text-xs font-semibold text-slate-200">{user.fullName}</div>
               <div className="text-[10px] text-emerald-400 flex items-center gap-1 justify-end">
@@ -493,55 +513,113 @@ export function App() {
         </div>
       </header>
 
+      {/* Mobile Navigation Bar (Barra de Pestañas Deslizable en Móvil) */}
+      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto py-2 px-3 bg-slate-950/90 border-b border-slate-800 scrollbar-none sticky top-[49px] z-30 backdrop-blur">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>Métricas</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('licenses')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'licenses' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+          }`}
+        >
+          <KeyRound className="w-3.5 h-3.5" />
+          <span>Licencias</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('tenants')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'tenants' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Clientes</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('coolify')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'coolify' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-400" />
+          <span>Coolify Apps</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('audit')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'audit' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+          }`}
+        >
+          <Terminal className="w-3.5 h-3.5" />
+          <span>Inspector</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('simulator')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+            activeTab === 'simulator' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+          }`}
+        >
+          <Play className="w-3.5 h-3.5" />
+          <span>Sandbox</span>
+        </button>
+      </div>
+
       {/* Main Container */}
-      <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+      <main className="flex-1 p-3.5 sm:p-6 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
         {/* TAB 1: DASHBOARD METRICS */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Top Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Clientes Monitoreados</span>
-                  <Users className="w-4 h-4 text-indigo-400" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="p-3.5 sm:p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
+                <div className="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Clientes</span>
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400" />
                 </div>
-                <div className="text-2xl font-bold text-white">{metrics?.tenants?.total ?? tenants.length}</div>
-                <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                <div className="text-xl sm:text-2xl font-bold text-white">{metrics?.tenants?.total ?? tenants.length}</div>
+                <div className="text-[10px] sm:text-xs text-emerald-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  <span>{metrics?.tenants?.active ?? tenants.length} Activos en el sistema</span>
+                  <span className="truncate">{metrics?.tenants?.active ?? tenants.length} Activos</span>
                 </div>
               </div>
 
-              <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Dominios Registrados</span>
-                  <Globe className="w-4 h-4 text-sky-400" />
+              <div className="p-3.5 sm:p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
+                <div className="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Dominios</span>
+                  <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400" />
                 </div>
-                <div className="text-2xl font-bold text-white">{metrics?.domains?.total ?? domains.length}</div>
-                <div className="text-xs text-sky-400 mt-1 flex items-center gap-1">
-                  <span>Protegidos bajo Traefik ForwardAuth</span>
-                </div>
-              </div>
-
-              <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Licencias Activas</span>
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="text-2xl font-bold text-white">{metrics?.licenses?.active ?? licenses.filter(l => l.status === 'ACTIVE').length}</div>
-                <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                  <span>De un total de {metrics?.licenses?.total ?? licenses.length} registradas</span>
+                <div className="text-xl sm:text-2xl font-bold text-white">{metrics?.domains?.total ?? domains.length}</div>
+                <div className="text-[10px] sm:text-xs text-sky-400 mt-1 flex items-center gap-1">
+                  <span className="truncate">Protegidos Traefik</span>
                 </div>
               </div>
 
-              <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
-                <div className="flex items-center justify-between text-slate-400 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Peticiones Interceptadas</span>
-                  <Activity className="w-4 h-4 text-amber-400" />
+              <div className="p-3.5 sm:p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
+                <div className="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Licencias</span>
+                  <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-bold text-white">{metrics?.traffic?.totalRequests ?? auditLogs.length}</div>
-                <div className="text-xs text-amber-400 mt-1 flex items-center gap-1">
-                  <span>{metrics?.traffic?.denied ?? auditLogs.filter(a => a.decision === 'DENY').length} accesos bloqueados</span>
+                <div className="text-xl sm:text-2xl font-bold text-white">{metrics?.licenses?.active ?? licenses.filter(l => l.status === 'ACTIVE').length}</div>
+                <div className="text-[10px] sm:text-xs text-slate-400 mt-1 flex items-center gap-1">
+                  <span className="truncate">De {metrics?.licenses?.total ?? licenses.length} total</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 sm:p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
+                <div className="flex items-center justify-between text-slate-400 mb-1 sm:mb-2">
+                  <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Peticiones</span>
+                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-white">{metrics?.traffic?.totalRequests ?? auditLogs.length}</div>
+                <div className="text-[10px] sm:text-xs text-amber-400 mt-1 flex items-center gap-1">
+                  <span className="truncate">{metrics?.traffic?.denied ?? auditLogs.filter(a => a.decision === 'DENY').length} bloqueos</span>
                 </div>
               </div>
             </div>
@@ -604,24 +682,33 @@ export function App() {
                             {new Date(lic.expiresAt).toLocaleDateString()}
                           </td>
                           <td className="py-3 text-right">
-                            {isSuspended ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              {isSuspended ? (
+                                <button
+                                  onClick={() => handleReactivate(lic.id)}
+                                  className="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-semibold text-[11px] transition-colors"
+                                >
+                                  Reactivar
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setSuspendingLicenseId(lic.id);
+                                    setSuspendReason('Suscripción suspendida manualmente.');
+                                  }}
+                                  className="px-2.5 py-1 rounded bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 font-semibold text-[11px] transition-colors"
+                                >
+                                  Suspender
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleReactivate(lic.id)}
-                                className="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-semibold text-[11px] transition-colors"
+                                onClick={() => setDeletingTenant(lic.tenant)}
+                                title="Eliminar Cliente"
+                                className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                               >
-                                Reactivar
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  setSuspendingLicenseId(lic.id);
-                                  setSuspendReason('Suscripción suspendida manualmente.');
-                                }}
-                                className="px-2.5 py-1 rounded bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 font-semibold text-[11px] transition-colors"
-                              >
-                                Suspender
-                              </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -753,6 +840,14 @@ export function App() {
                           <Clock className="w-4 h-4 text-indigo-400" />
                           <span>+30 Días</span>
                         </button>
+
+                        <button
+                          onClick={() => setDeletingTenant(lic.tenant)}
+                          title="Eliminar Cliente"
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-red-950/40 text-slate-400 hover:text-red-400 border border-slate-700/80 hover:border-red-900 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -787,15 +882,25 @@ export function App() {
                       <h4 className="font-bold text-white text-sm">{t.businessName}</h4>
                       <span className="text-[11px] font-mono text-indigo-400">{t.code}</span>
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                        t.status === 'ACTIVE'
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-red-500/10 text-red-400 border-red-500/20'
-                      }`}
-                    >
-                      {t.status}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          t.status === 'ACTIVE'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}
+                      >
+                        {t.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingTenant(t)}
+                        title="Eliminar Cliente"
+                        className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="text-xs text-slate-400 space-y-1">
@@ -1092,7 +1197,7 @@ export function App() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse min-w-[650px]">
                     <thead>
                       <tr className="border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                         <th className="py-3 px-4">Aplicación / Repositorio</th>
@@ -1449,6 +1554,52 @@ export function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmar Eliminación de Cliente */}
+      {deletingTenant && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Eliminar Cliente</h3>
+                <span className="text-xs text-slate-400">Esta acción no se puede deshacer</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              ¿Estás seguro de que deseas eliminar permanentemente a{' '}
+              <strong className="text-white">{deletingTenant.businessName}</strong> ({deletingTenant.code})?
+            </p>
+
+            <div className="p-3 rounded-lg bg-red-950/20 border border-red-900/40 text-[11px] text-red-300">
+              ⚠️ Se removerán sus licencias asociadas y la vinculación de sus dominios en AppzPlay Gateway.
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={() => setDeletingTenant(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={handleDeleteTenant}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-red-600/20 flex items-center gap-1.5"
+              >
+                {deleteLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{deleteLoading ? 'Eliminando...' : 'Eliminar Definitivamente'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
