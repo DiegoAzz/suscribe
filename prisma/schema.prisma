@@ -1,0 +1,199 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AdminRole {
+  SUPERADMIN
+  ADMIN
+  VIEWER
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum LicenseStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  LIFETIME
+}
+
+enum Decision {
+  ALLOW
+  DENY
+  BYPASS
+}
+
+enum HttpMethod {
+  ALL
+  GET
+  POST
+  PUT
+  DELETE
+  PATCH
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         AdminRole @default(ADMIN)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("admin_users")
+}
+
+model Application {
+  id                    String        @id @default(uuid())
+  slug                  String        @unique
+  name                  String
+  description           String?
+  defaultRedirectUrl    String?
+  defaultGracePeriodDays Int          @default(3)
+  isActive              Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  domains               Domain[]
+  licenses              License[]
+  bypassRules           BypassRule[]
+
+  @@map("applications")
+}
+
+model Tenant {
+  id           String       @id @default(uuid())
+  code         String       @unique
+  businessName String
+  contactName  String?
+  email        String?
+  phone        String?
+  notes        String?
+  status       TenantStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  domains      Domain[]
+  licenses     License[]
+
+  @@map("tenants")
+}
+
+model Domain {
+  id            String       @id @default(uuid())
+  hostname      String       @unique
+  tenantId      String
+  applicationId String
+  isPrimary     Boolean      @default(false)
+  status        TenantStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([hostname])
+  @@index([status])
+  @@index([tenantId])
+  @@index([applicationId])
+  @@map("domains")
+}
+
+model License {
+  id               String        @id @default(uuid())
+  licenseKey       String        @unique
+  tenantId         String
+  applicationId    String
+  status           LicenseStatus @default(ACTIVE)
+  startsAt         DateTime      @default(now())
+  expiresAt        DateTime
+  gracePeriodDays  Int           @default(3)
+  billingCycle     BillingCycle  @default(MONTHLY)
+  amount           Decimal?      @db.Decimal(10, 2)
+  currency         String        @default("USD")
+  suspensionReason String?
+  suspendedAt      DateTime?
+  reactivatedAt    DateTime?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  application      Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, applicationId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([tenantId])
+  @@index([applicationId])
+  @@map("licenses")
+}
+
+model BypassRule {
+  id            String       @id @default(uuid())
+  applicationId String?
+  pathPattern   String
+  httpMethod    HttpMethod   @default(ALL)
+  description   String?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([isActive])
+  @@map("bypass_rules")
+}
+
+model AccessAuditLog {
+  id         BigInt   @id @default(autoincrement())
+  domain     String
+  path       String
+  method     String
+  clientIp   String?
+  userAgent  String?
+  decision   Decision
+  reason     String?
+  latencyMs  Int      @default(0)
+  tenantCode String?
+  appSlug    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([domain])
+  @@index([decision])
+  @@map("access_audit_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}

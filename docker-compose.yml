@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # ========================================================
+  # Base de Datos PostgreSQL con Persistencia Real
+  # ========================================================
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-appzplay_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-appzplay_secure_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-appzplay_license_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appzplay_user} -d ${POSTGRES_DB:-appzplay_license_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - gateway_net
+
+  # ========================================================
+  # AppzPlay License Gateway (Panel Admin + Motor ForwardAuth)
+  # Dominio Coolify: https://suscribe.appzplay.online
+  # ========================================================
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      APP_URL: ${APP_URL:-https://suscribe.appzplay.online}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-appzplay_user}:${POSTGRES_PASSWORD:-appzplay_secure_password_2026}@postgres:5432/${POSTGRES_DB:-appzplay_license_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-appzplay_super_secret_jwt_key_at_least_32_chars_long_2026!}
+      COOKIE_SECRET: ${COOKIE_SECRET:-appzplay_cookie_signing_secret_64_characters_long_super_secure_key!}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@appzplay.online}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-AppzPlaySuperAdmin2026!}
+      DEFAULT_ADMIN_NAME: ${DEFAULT_ADMIN_NAME:-AppzPlay Administrator}
+      CACHE_TTL_MS: 30000
+      AUDIT_LOG_ENABLED: "true"
+      SUSPENDED_REDIRECT_URL: https://suscribe.appzplay.online/suspended
+    ports:
+      - "3000:3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.appzplay-gateway.rule=Host(`suscribe.appzplay.online`)"
+      - "traefik.http.routers.appzplay-gateway.entrypoints=websecure"
+      - "traefik.http.routers.appzplay-gateway.tls=true"
+      - "traefik.http.routers.appzplay-gateway.tls.certresolver=letsencrypt"
+      - "traefik.http.services.appzplay-gateway.loadbalancer.server.port=3000"
+    networks:
+      - gateway_net
+      - coolify
+
+  # ========================================================
+  # Aplicación Ficticia (Dummy App) para Pruebas del MVP
+  # Demuestra el Bloqueo Perimetral Real con Traefik ForwardAuth
+  # ========================================================
+  dummy-app:
+    image: traefik/whoami:latest
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dummy-app.rule=Host(`dummy.appzplay.online`)"
+      - "traefik.http.routers.dummy-app.entrypoints=websecure"
+      - "traefik.http.routers.dummy-app.tls=true"
+      - "traefik.http.routers.dummy-app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dummy-app.loadbalancer.server.port=80"
+      
+      # Middleware de enlace con AppzPlay License Gateway
+      - "traefik.http.routers.dummy-app.middlewares=appzplay-forwardauth@docker"
+      - "traefik.http.middlewares.appzplay-forwardauth.forwardauth.address=http://gateway:3000/api/v1/forward-auth/verify"
+      - "traefik.http.middlewares.appzplay-forwardauth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.appzplay-forwardauth.forwardauth.authResponseHeaders=X-License-Status,X-License-Tenant,X-License-App,X-License-Warning"
+    networks:
+      - gateway_net
+      - coolify
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  gateway_net:
+    driver: bridge
+  coolify:
+    external: true
