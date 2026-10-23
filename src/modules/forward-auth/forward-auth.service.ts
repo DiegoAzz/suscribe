@@ -38,10 +38,36 @@ export class ForwardAuthService {
 
     // 1. Extraer y sanear el hostname
     const rawHost = params.host || 'unknown-host';
-    const cleanHost = rawHost.split(':')[0].trim().toLowerCase();
+    const cleanHost = rawHost.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').split(':')[0].trim().toLowerCase();
     const uri = params.uri || '/';
     const method = (params.method || 'GET').toUpperCase();
     const isBrowserHtml = (params.acceptHeader || '').includes('text/html') && method === 'GET';
+
+    // 1.1 Salvaguarda Crítica: El propio Gateway y sus páginas administrativas jamás pueden ser bloqueados
+    let gatewayHost = 'suscribe.appzplay.online';
+    try {
+      gatewayHost = new URL(env.APP_URL).hostname.toLowerCase();
+    } catch {}
+
+    if (
+      cleanHost === gatewayHost ||
+      cleanHost === 'suscribe.appzplay.online' ||
+      cleanHost === 'localhost' ||
+      cleanHost === '127.0.0.1' ||
+      uri.startsWith('/suspended') ||
+      uri.startsWith('/health') ||
+      uri.startsWith('/api/v1/auth') ||
+      uri.startsWith('/api/v1/forward-auth')
+    ) {
+      return {
+        allowed: true,
+        statusCode: 200,
+        headers: {
+          'X-License-Status': 'GATEWAY_SELF_BYPASS',
+        },
+        latencyMs: Date.now() - startTime,
+      };
+    }
 
     // 2. Verificar reglas de bypass
     const isBypassed = await this.checkBypassRules(uri, method);
