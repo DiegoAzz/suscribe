@@ -20,6 +20,7 @@ import {
   Trash2,
   ExternalLink,
   Sliders,
+  Zap,
 } from 'lucide-react';
 import { api } from './api/client';
 
@@ -70,6 +71,12 @@ export function App() {
   const [helperSnippet, setHelperSnippet] = useState('');
   const [coolifyUiSnippet, setCoolifyUiSnippet] = useState('');
   const [snippetFormat, setSnippetFormat] = useState<'ui' | 'compose'>('ui');
+
+  // Coolify API Integration (1-Clic)
+  const [coolifyApps, setCoolifyApps] = useState<any[]>([]);
+  const [coolifyLoading, setCoolifyLoading] = useState(false);
+  const [coolifyActionId, setCoolifyActionId] = useState<string | null>(null);
+  const [coolifyConfig, setCoolifyConfig] = useState<any>({ url: 'http://179.236.70.251:8000', hasToken: true });
 
   const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message: msg, type });
@@ -131,6 +138,57 @@ export function App() {
       })
       .catch(() => {});
   }, [selectedAppSlug, helperDomain]);
+
+  const loadCoolifyApps = async () => {
+    setCoolifyLoading(true);
+    try {
+      const [res, cfg] = await Promise.all([
+        api.getCoolifyApps().catch((e) => ({ success: false, apps: [], error: e.message })),
+        api.getCoolifyConfig().catch(() => null),
+      ]);
+      if (res?.apps) setCoolifyApps(res.apps);
+      if (cfg) setCoolifyConfig(cfg);
+    } catch (err: any) {
+      showNotify(err.message || 'Error cargando apps de Coolify', 'error');
+    } finally {
+      setCoolifyLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && activeTab === 'coolify') {
+      loadCoolifyApps();
+    }
+  }, [user, activeTab]);
+
+  const handleProtectCoolifyApp = async (app: any) => {
+    setCoolifyActionId(app.uuid);
+    try {
+      const res = await api.protectCoolifyApp(app.uuid, app.name);
+      showNotify(res.message || `Aplicación ${app.name} protegida con éxito.`);
+      await loadCoolifyApps();
+      await loadAllData();
+    } catch (err: any) {
+      showNotify(err.message, 'error');
+    } finally {
+      setCoolifyActionId(null);
+    }
+  };
+
+  const handleUnprotectCoolifyApp = async (app: any) => {
+    if (!confirm(`¿Seguro que deseas remover la protección de ${app.name}?`)) return;
+    setCoolifyActionId(app.uuid);
+    try {
+      const res = await api.unprotectCoolifyApp(app.uuid);
+      showNotify(res.message);
+      await loadCoolifyApps();
+      await loadAllData();
+    } catch (err: any) {
+      showNotify(err.message, 'error');
+    } finally {
+      setCoolifyActionId(null);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,8 +458,8 @@ export function App() {
                 activeTab === 'coolify' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Generador Coolify</span>
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span>Coolify Apps (1-Clic)</span>
             </button>
           </nav>
         </div>
@@ -978,113 +1036,213 @@ export function App() {
           </div>
         )}
 
-        {/* TAB 6: GENERADOR COOLIFY */}
+        {/* TAB 6: GESTIÓN DIRECTA COOLIFY (1-CLIC) */}
         {activeTab === 'coolify' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-white">Generador de Etiquetas Traefik para Coolify</h2>
-              <p className="text-xs text-slate-400">
-                Copia y pega estas etiquetas en cualquier servicio Docker Compose de Coolify para protegerlo con el Gateway
-              </p>
+            {/* Header & Status */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-slate-900 border border-indigo-900/40">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-white">Conexión Directa con Coolify API</h2>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    API Conectada
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Protege o desvincula cualquier aplicación de tu VPS con 1 solo clic. Sin tocar el servidor ni editar etiquetas a mano.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadCoolifyApps}
+                  disabled={coolifyLoading}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${coolifyLoading ? 'animate-spin text-indigo-400' : ''}`} />
+                  <span>Actualizar Apps</span>
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Form */}
-              <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-                <h3 className="text-sm font-bold text-white">Configuración del Servicio</h3>
-
+            {/* List of Applications from Coolify */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Aplicación</label>
-                  <select
-                    value={selectedAppSlug}
-                    onChange={(e) => setSelectedAppSlug(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500"
-                  >
-                    {applications.map((app) => (
-                      <option key={app.id} value={app.slug}>
-                        {app.name} ({app.slug})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Dominio Público de la App</label>
-                  <input
-                    type="text"
-                    value={helperDomain}
-                    onChange={(e) => setHelperDomain(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-sm font-mono focus:outline-none focus:border-indigo-500"
-                    placeholder="ej: turnos.appzplay.online"
-                  />
-                </div>
-
-                <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-900/40 text-xs text-indigo-300 space-y-2">
-                  <div className="font-semibold flex items-center gap-1.5 text-indigo-200">
-                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                    <span>Sin Modificar el VPS Global</span>
-                  </div>
-                  <p>
-                    Estas etiquetas se agregan únicamente al contenedor que deseas proteger. No alteran ni reinician el proxy global de Coolify.
-                  </p>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span>Aplicaciones Detectadas en tu Servidor Coolify</span>
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    {coolifyApps.length} servicios encontrados en {coolifyConfig?.url || 'http://179.236.70.251:8000'}
+                  </span>
                 </div>
               </div>
 
-              {/* Code Snippet */}
-              <div className="lg:col-span-2 p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setSnippetFormat('ui')}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                        snippetFormat === 'ui' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                      }`}
+              {coolifyLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-3">
+                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-400" />
+                  <span className="text-xs">Sincronizando con la API de Coolify...</span>
+                </div>
+              ) : coolifyApps.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+                  No se encontraron aplicaciones o la API no devolvió datos.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        <th className="py-3 px-4">Aplicación / Repositorio</th>
+                        <th className="py-3 px-4">Dominio FQDN</th>
+                        <th className="py-3 px-4">Estado Coolify</th>
+                        <th className="py-3 px-4">Protección ForwardAuth</th>
+                        <th className="py-3 px-4 text-right">Acción (1-Clic)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-xs">
+                      {coolifyApps.map((app) => (
+                        <tr key={app.uuid} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-white">{app.name}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">{app.gitRepository || app.uuid}</div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-300">
+                            {app.fqdn ? (
+                              <a
+                                href={app.fqdn}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-400 hover:underline flex items-center gap-1"
+                              >
+                                <span>{app.fqdn.replace(/^https?:\/\//i, '')}</span>
+                                <ExternalLink className="w-3 h-3 text-slate-500" />
+                              </a>
+                            ) : (
+                              <span className="text-slate-500">Sin FQDN</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                              {app.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {app.isProtected ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>Protegido</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Sin Proteger</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            {app.isProtected ? (
+                              <button
+                                type="button"
+                                disabled={coolifyActionId === app.uuid}
+                                onClick={() => handleUnprotectCoolifyApp(app)}
+                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-950/40 text-slate-400 hover:text-red-400 text-xs font-semibold border border-slate-700 hover:border-red-900 transition-colors inline-flex items-center gap-1.5"
+                              >
+                                {coolifyActionId === app.uuid ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3 h-3" />
+                                )}
+                                <span>Quitar Protección</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={coolifyActionId === app.uuid || !app.fqdn}
+                                onClick={() => handleProtectCoolifyApp(app)}
+                                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-indigo-600/20 inline-flex items-center gap-1.5 disabled:opacity-50"
+                              >
+                                {coolifyActionId === app.uuid ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                                )}
+                                <span>⚡ Proteger con 1 Clic</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Accordion / Secondary: Generador Manual de Etiquetas Traefik */}
+            <details className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 cursor-pointer group">
+              <summary className="text-sm font-bold text-white flex items-center justify-between list-none">
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-slate-400" />
+                  <span>Generador Manual de Etiquetas Traefik (Avanzado / Opcional)</span>
+                </div>
+                <span className="text-xs text-indigo-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4 cursor-default">
+                {/* Form */}
+                <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Aplicación</label>
+                    <select
+                      value={selectedAppSlug}
+                      onChange={(e) => setSelectedAppSlug(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-indigo-500"
                     >
-                      Formato Coolify UI (Active Labels)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSnippetFormat('compose')}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                        snippetFormat === 'compose' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      Formato Docker Compose (YAML)
-                    </button>
+                      {applications.map((app) => (
+                        <option key={app.id} value={app.slug}>
+                          {app.name} ({app.slug})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      const textToCopy = snippetFormat === 'ui' ? coolifyUiSnippet : helperSnippet;
-                      navigator.clipboard.writeText(textToCopy);
-                      showNotify('Etiquetas copiadas al portapapeles');
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copiar al Portapapeles</span>
-                  </button>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Dominio Público de la App</label>
+                    <input
+                      type="text"
+                      value={helperDomain}
+                      onChange={(e) => setHelperDomain(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                      placeholder="ej: turnos.appzplay.online"
+                    />
+                  </div>
                 </div>
 
-                {snippetFormat === 'ui' ? (
-                  <div className="space-y-3">
-                    <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
-                      <div className="font-semibold text-indigo-400">Instrucciones para la pantalla de Coolify:</div>
-                      <div>1. En Coolify, busca la línea que dice <code>.middlewares=gzip</code> y agrégale <code>,appzplay-auth</code> al final.</div>
-                      <div>2. Pega estas 3 líneas al final de la caja <strong>Active labels</strong>:</div>
-                    </div>
-                    <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
-                      {coolifyUiSnippet}
-                    </pre>
+                {/* Code Snippet */}
+                <div className="lg:col-span-2 p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">Etiquetas generadas con domain explícito:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(coolifyUiSnippet);
+                        showNotify('Etiquetas copiadas al portapapeles');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copiar</span>
+                    </button>
                   </div>
-                ) : (
-                  <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed">
-                    {helperSnippet}
+                  <pre className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono text-emerald-400 overflow-x-auto leading-relaxed">
+                    {coolifyUiSnippet}
                   </pre>
-                )}
+                </div>
               </div>
-            </div>
+            </details>
           </div>
         )}
       </main>

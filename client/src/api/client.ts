@@ -112,6 +112,25 @@ export const api = {
   getTraefikSnippet: (serviceName: string, domain: string) =>
     request<any>(`/api/v1/traefik/labels-generator?serviceName=${encodeURIComponent(serviceName)}&domain=${encodeURIComponent(domain)}`),
 
+  // Coolify Integration
+  getCoolifyConfig: () => request<{ url: string; token: string; hasToken: boolean }>('/api/v1/coolify/config'),
+  saveCoolifyConfig: (data: { url: string; token: string }) =>
+    request<any>('/api/v1/coolify/config', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getCoolifyApps: () => request<{ success: boolean; count: number; apps: any[] }>('/api/v1/coolify/apps'),
+  protectCoolifyApp: (uuid: string, appName?: string) =>
+    request<any>('/api/v1/coolify/protect', {
+      method: 'POST',
+      body: JSON.stringify({ uuid, appName }),
+    }),
+  unprotectCoolifyApp: (uuid: string) =>
+    request<any>('/api/v1/coolify/unprotect', {
+      method: 'POST',
+      body: JSON.stringify({ uuid }),
+    }),
+
   // ForwardAuth Simulator / Tester
   testForwardAuth: async (domain: string, uri = '/', method = 'GET') => {
     const startTime = performance.now();

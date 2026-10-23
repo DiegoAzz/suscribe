@@ -19,6 +19,7 @@ import { licensesRoutes } from './modules/licenses/licenses.controller.js';
 import { bypassRulesRoutes } from './modules/bypass-rules/bypass-rules.controller.js';
 import { auditRoutes } from './modules/audit/audit.controller.js';
 import { traefikHelperRoutes } from './modules/traefik-helper/traefik-helper.controller.js';
+import { coolifyRoutes } from './modules/coolify/coolify.controller.js';
 import { renderSuspendedPage } from './views/suspended.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -71,6 +72,7 @@ export async function buildApp() {
   await app.register(bypassRulesRoutes);
   await app.register(auditRoutes);
   await app.register(traefikHelperRoutes);
+  await app.register(coolifyRoutes);
 
   // 5. Vista Pública de Suspensión (/suspended)
   app.get('/suspended', async (request, reply) => {
