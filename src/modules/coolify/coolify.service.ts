@@ -236,11 +236,15 @@ export class CoolifyService {
       labelsStr = Buffer.from(app.custom_labels, 'base64').toString('utf8');
     }
 
-    // Remover appzplay-auth
-    const lines = labelsStr.split('\n').filter((l) => !l.includes('appzplay-auth.forwardauth.'));
+    // Remover completamente cualquier referencia a appzplay-auth
+    const lines = labelsStr.split('\n').filter((l) => !l.toLowerCase().includes('appzplay-auth'));
     const updated = lines.map((l) => {
       if (l.includes('.middlewares=')) {
-        return l.replace(',appzplay-auth', '').replace('appzplay-auth,', '').replace('appzplay-auth', '');
+        let cleaned = l.replace(/,?\s*appzplay-auth[^\s,]*/gi, '').replace(/appzplay-auth[^\s,]*\s*,?/gi, '');
+        if (cleaned.endsWith('.middlewares=')) {
+          cleaned = `${cleaned}gzip`;
+        }
+        return cleaned;
       }
       return l;
     });
